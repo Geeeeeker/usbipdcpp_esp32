@@ -25,15 +25,12 @@ jobs:
 
       - name: Fix missing main/include directory
         run: |
-          # 如果 main/CMakeLists.txt 引用了 include 目录但目录不存在，则创建空目录
           if [ -f "main/CMakeLists.txt" ] && grep -q "INCLUDE_DIRS.*include" main/CMakeLists.txt; then
             if [ ! -d "main/include" ]; then
               echo "Creating missing main/include directory"
               mkdir -p main/include
             fi
           fi
-          # 或者更激进的方法：直接注释掉 INCLUDE_DIRS 行（可选）
-          # sed -i 's/INCLUDE_DIRS "include"/# INCLUDE_DIRS "include"/' main/CMakeLists.txt
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -41,19 +38,15 @@ jobs:
           python-version: '3.11'
 
       - name: Install ESP-IDF
+        id: install-idf
         uses: espressif/esp-idf-ci-action@v1
         with:
           esp_idf_version: ${{ env.ESP_IDF_VERSION }}
           target: ${{ env.TARGET_CHIP }}
 
-      - name: Verify environment
-        run: |
-          . $IDF_PATH/export.sh
-          idf.py --version
-
       - name: Build firmware
         run: |
-          . $IDF_PATH/export.sh
+          . ${{ steps.install-idf.outputs.idf_path }}/export.sh
           idf.py set-target ${{ env.TARGET_CHIP }}
           idf.py build
 
