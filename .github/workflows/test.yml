@@ -38,6 +38,7 @@ jobs:
           python-version: '3.11'
 
       - name: Install ESP-IDF
+        id: install-idf
         uses: espressif/esp-idf-ci-action@v1
         with:
           esp_idf_version: ${{ env.ESP_IDF_VERSION }}
@@ -45,6 +46,8 @@ jobs:
 
       - name: Build firmware
         run: |
+          # Source the ESP-IDF environment
+          source ${{ steps.install-idf.outputs.idf_path }}/export.sh
           idf.py set-target ${{ env.TARGET_CHIP }}
           idf.py build
 
