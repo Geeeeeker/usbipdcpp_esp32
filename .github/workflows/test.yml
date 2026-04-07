@@ -8,10 +8,10 @@ on:
       - 'changelog.md'
   pull_request:
     branches: [ "main", "master" ]
-  workflow_dispatch:   # 允许手动触发
+  workflow_dispatch:
 
 env:
-  ESP_IDF_VERSION: v5.5   # 与项目要求的 ESP-IDF 版本一致
+  ESP_IDF_VERSION: v5.5
   TARGET_CHIP: esp32s3
 
 jobs:
@@ -21,7 +21,19 @@ jobs:
       - name: Checkout repository with submodules
         uses: actions/checkout@v4
         with:
-          submodules: 'recursive'   # 关键：拉取 usbipdcpp 子模块
+          submodules: 'recursive'
+
+      - name: Fix missing main/include directory
+        run: |
+          # 如果 main/CMakeLists.txt 引用了 include 目录但目录不存在，则创建空目录
+          if [ -f "main/CMakeLists.txt" ] && grep -q "INCLUDE_DIRS.*include" main/CMakeLists.txt; then
+            if [ ! -d "main/include" ]; then
+              echo "Creating missing main/include directory"
+              mkdir -p main/include
+            fi
+          fi
+          # 或者更激进的方法：直接注释掉 INCLUDE_DIRS 行（可选）
+          # sed -i 's/INCLUDE_DIRS "include"/# INCLUDE_DIRS "include"/' main/CMakeLists.txt
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -38,13 +50,11 @@ jobs:
         run: |
           . $IDF_PATH/export.sh
           idf.py --version
-          echo "IDF_PATH=$IDF_PATH" >> $GITHUB_ENV
 
       - name: Build firmware
         run: |
           . $IDF_PATH/export.sh
           idf.py set-target ${{ env.TARGET_CHIP }}
-          # 如果项目已有 sdkconfig，直接构建；否则使用默认配置
           idf.py build
 
       - name: Archive build artifacts
@@ -54,19 +64,17 @@ jobs:
           path: |
             build/bootloader/bootloader.bin
             build/partition_table/partition-table.bin
-            build/usbipdcpp_esp32.bin   # 项目生成的固件名可能是这个，也可能是 usbip_server.bin
+            build/*.bin
             build/flash_args
-            build/flash_project_args
           retention-days: 30
 
-      - name: Prepare release assets (on tag push)
+      - name: Prepare release assets
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
           mkdir -p release
           cp build/bootloader/bootloader.bin release/
           cp build/partition_table/partition-table.bin release/
-          # 根据实际生成的 bin 文件名调整，常见为项目名.bin
-          cp build/*.bin release/   # 复制所有 bin 文件
+          cp build/*.bin release/
           cd build && zip -r ../release/firmware-full.zip . && cd ..
 
       - name: Create GitHub Release
