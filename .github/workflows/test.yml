@@ -1,24 +1,28 @@
-name: Build ESP32-S3 USB/IP Server
+name: Build ESP32 USB/IP Server
 
 on:
-  push:
-    branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
   workflow_dispatch:
     inputs:
       target:
-        description: 'ESP32 chip target'
+        description: 'Target chip'
         required: true
         default: 'esp32s3'
         type: choice
         options:
-          - esp32
-          - esp32s2
           - esp32s3
+          - esp32s2
           - esp32c3
-          - esp32c5
           - esp32c6
+      wifi_ssid:
+        description: 'WiFi SSID'
+        required: true
+        type: string
+        default: 'MyWiFi'
+      wifi_password:
+        description: 'WiFi Password'
+        required: true
+        type: string
+        default: 'password123'
 
 jobs:
   build:
@@ -30,28 +34,34 @@ jobs:
           submodules: 'recursive'
 
       - name: Fix missing main/include directory
-        # 项目 CMakeLists.txt 引用了 main/include，但目录缺失，创建空目录避免编译错误
         run: |
           if [ -f "main/CMakeLists.txt" ] && grep -q "INCLUDE_DIRS.*include" main/CMakeLists.txt; then
             mkdir -p main/include
           fi
 
+      - name: Configure WiFi credentials
+        run: |
+          # 删除旧的 sdkconfig，强制重新生成
+          rm -f sdkconfig
+          # 将用户输入的 WiFi 信息写入 sdkconfig.defaults
+          # 注意：实际 Kconfig 变量名可能不同，请根据项目实际修改
+          echo "CONFIG_USBIPD_WIFI_SSID=\"${{ github.event.inputs.wifi_ssid }}\"" >> sdkconfig.defaults
+          echo "CONFIG_USBIPD_WIFI_PASSWORD=\"${{ github.event.inputs.wifi_password }}\"" >> sdkconfig.defaults
+          # 如果项目使用其他变量名（如 CONFIG_ESP_WIFI_SSID），请相应调整
+
       - name: Build with ESP-IDF
         uses: espressif/esp-idf-ci-action@v1
         with:
-          esp_idf_version: v5.5   # 你的项目要求 v5.5
-          target: ${{ github.event.inputs.target || 'esp32s3' }}
+          esp_idf_version: v5.5
+          target: ${{ github.event.inputs.target }}
           path: .
           command: |
-            # 保留项目原有的 sdkconfig（已配置 PSRAM、USB-OTG 等）
-            # 若需要清理旧配置可取消下一行注释
-            # rm -f sdkconfig
             idf.py build
 
       - name: Upload firmware artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: usbip-firmware-${{ github.event.inputs.target || 'esp32s3' }}
+          name: usbip-firmware-${{ github.event.inputs.target }}
           path: |
             build/*.bin
             build/bootloader/*.bin
