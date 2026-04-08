@@ -11,8 +11,7 @@ on:
         options:
           - esp32s3
           - esp32s2
-          - esp32c3
-          - esp32c6
+          - esp32
       wifi_ssid:
         description: 'WiFi SSID'
         required: true
@@ -39,15 +38,19 @@ jobs:
             mkdir -p main/include
           fi
 
-      - name: Configure WiFi credentials
+      - name: Configure WiFi and disable Ethernet
         run: |
           # 删除旧的 sdkconfig，强制重新生成
           rm -f sdkconfig
-          # 将用户输入的 WiFi 信息写入 sdkconfig.defaults
-          # 注意：实际 Kconfig 变量名可能不同，请根据项目实际修改
+          # 写入 WiFi 配置（变量名请根据项目实际 Kconfig 调整）
           echo "CONFIG_USBIPD_WIFI_SSID=\"${{ github.event.inputs.wifi_ssid }}\"" >> sdkconfig.defaults
           echo "CONFIG_USBIPD_WIFI_PASSWORD=\"${{ github.event.inputs.wifi_password }}\"" >> sdkconfig.defaults
-          # 如果项目使用其他变量名（如 CONFIG_ESP_WIFI_SSID），请相应调整
+          # 禁用以太网组件（避免编译 esp_eth 导致错误）
+          echo "CONFIG_ETH_ENABLED=n" >> sdkconfig.defaults
+          # 如果项目有额外的以太网选项，也可以禁用
+          echo "CONFIG_ESP_ETH_ENABLED=n" >> sdkconfig.defaults
+          echo "CONFIG_ETH_USE_ESP32_EMAC=n" >> sdkconfig.defaults
+          echo "CONFIG_ETH_USE_OPENETH=n" >> sdkconfig.defaults
 
       - name: Build with ESP-IDF
         uses: espressif/esp-idf-ci-action@v1
